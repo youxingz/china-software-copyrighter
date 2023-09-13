@@ -1,5 +1,8 @@
 import os
 import argparse
+from docx import Document
+from docx.shared import Pt, Cm
+import datetime
 
 # return all lines scanned.
 def process(dir, langs=[], remove_first_comment=True, remove_comment=False):
@@ -19,7 +22,8 @@ def process(dir, langs=[], remove_first_comment=True, remove_comment=False):
         # ingores
         copyright_removed = False
         in_comments = False
-        for line in textlines:
+        for line_ in textlines:
+          line = line_[:-1]
           # ingore empty line
           striped_line = line.strip()
           if len(striped_line) == 0:
@@ -70,7 +74,7 @@ def process(dir, langs=[], remove_first_comment=True, remove_comment=False):
               if striped_line.startswith('#'):  # python, elixir, ...
                 continue
           lines.append(line)
-        print(f'\tfile: #lines={len(lines): >5}  {fullpath}')
+        print(f'  file: #lines={len(lines): >5}  {fullpath}')
         # print(f'\tline: {len(lines)}')
         documents.append((relapath, fullpath, lines))
     except UnicodeDecodeError:
@@ -93,6 +97,48 @@ def process(dir, langs=[], remove_first_comment=True, remove_comment=False):
   scan_subdir(dir)
   return documents
 
+def export(sourcecodes=[], filename='output.docx', params={}):
+  document = Document()
+
+  sections = document.sections
+  section = sections[0]
+  section.top_margin = Cm(0.8)
+  section.bottom_margin = Cm(0.8)
+  section.left_margin = Cm(1)
+  section.right_margin = Cm(1)
+  section.header.is_linked_to_previous = True
+  # styles
+  filenamestyle = document.styles['Header']
+  font = filenamestyle.font
+  font.name = 'Arial'
+  font.size = Pt(12)
+  font.bold = True
+  filenameformat = filenamestyle.paragraph_format
+  filenameformat.space_before = Pt(10)
+  filenameformat.space_after = Pt(6)
+  codestyle = document.styles['Normal']
+  font = codestyle.font
+  font.name = 'Arial'
+  font.size = Pt(10)
+  codeformat = codestyle.paragraph_format
+  codeformat.space_before = Pt(1)
+  codeformat.space_after = Pt(1)
+
+  document.add_heading(f'{params["name"]}源代码')
+  document.add_paragraph(f'Copyright © {params["company"]} {datetime.date.today().strftime("%Y")}')
+  document.add_paragraph(f'Version {params["version"]}')
+  total_line = 1
+  for source in sourcecodes:
+    paragraph = document.add_paragraph(source[0])
+    paragraph.style = filenamestyle
+    lines = source[2]
+    for line in lines:
+      code = document.add_paragraph(f'{total_line: >6}\t{line}')
+      code.style = codestyle
+      total_line += 1
+    # paragraph.add_run()
+  document.save(filename)
+
 def main():
   parser = argparse.ArgumentParser(
     prog='china-software-copyrighter',
@@ -100,16 +146,37 @@ def main():
     epilog='Copyright(youxingz) © 2023'
   )
   parser.add_argument('-d', '--dir', required=True)
-  parser.add_argument('-m', '--main', required=True, help='主函数入口所在文件')
+  parser.add_argument('-m', '--main', required=False, help='主函数入口所在文件')
   parser.add_argument('-o', '--out', default='output.docx')
   parser.add_argument('-l', '--languages', default='all', help='需要扫描的语言文件格式，用 "," 隔开')
+  parser.add_argument('-n', '--name', default='', help='项目名称')
+  parser.add_argument('-c', '--company', default='', help='公司/著作者名称')
+  parser.add_argument('-v', '--version', default='1.0.0', help='版本号')
   args = parser.parse_args()
-  print(f'dir   = {args.dir}')
-  print(f'main  = {args.main}')
-  print(f'out   = {args.out}')
-  print(f'langs = {args.languages}')
+  # print(f'dir   = {args.dir}')
+  # print(f'main  = {args.main}')
+  # print(f'out   = {args.out}')
+  # print(f'langs = {args.languages}')
+  print('source code scanning...')
   docs = process(args.dir, args.languages.split(','), remove_first_comment=True, remove_comment=True)
-  print(f'files = {len(docs)}')
+  # rearrange
+  if len(args.main) != 0:
+    main = None
+    for doc in docs:
+      if doc[1].endswith(args.main):
+        main = doc
+        docs.remove(main)
+        print(f'  main file detected: {main[1]}')
+        break
+    docs.insert(0, main)
+  print(f'{len(docs)} files selected, docx file generating...')
+  # output:
+  export(docs, args.out, {
+    'name': args.name,
+    'company': args.company,
+    'version': args.version,
+  })
+  print(f'task done, export file: {args.out}')
 
 if __name__ == '__main__':
   main()
