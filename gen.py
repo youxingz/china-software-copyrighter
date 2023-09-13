@@ -21,6 +21,7 @@ def process(dir, langs=[], remove_first_comment=True, remove_comment=False):
         lines = []
         # ingores
         copyright_removed = False
+        # real_line = 0
         in_comments = False
         for line_ in textlines:
           line = line_[:-1]
@@ -28,6 +29,7 @@ def process(dir, langs=[], remove_first_comment=True, remove_comment=False):
           striped_line = line.strip()
           if len(striped_line) == 0:
             continue
+          # real_line += 1
           if remove_first_comment:
             if not copyright_removed:
               if cstyle_comment:
@@ -37,7 +39,8 @@ def process(dir, langs=[], remove_first_comment=True, remove_comment=False):
                   continue
                 if striped_line.startswith('*'):
                   continue
-                if striped_line.startswith('*/'):
+                if '*/' in striped_line:
+                  copyright_removed = True
                   continue
               else:
                 if striped_line.startswith('#'):
@@ -145,20 +148,22 @@ def main():
     description='中国特色软件著作权代码生成器',
     epilog='Copyright(youxingz) © 2023'
   )
-  parser.add_argument('-d', '--dir', required=True)
+  parser.add_argument('-d', '--dir', required=True, help='项目所在目录')
   parser.add_argument('-m', '--main', required=False, help='主函数入口所在文件')
-  parser.add_argument('-o', '--out', default='output.docx')
+  parser.add_argument('-o', '--out', default='output.docx', help='输出文件名称，尽量以 .docx 结尾')
   parser.add_argument('-l', '--languages', default='all', help='需要扫描的语言文件格式，用 "," 隔开')
   parser.add_argument('-n', '--name', default='', help='项目名称')
   parser.add_argument('-c', '--company', default='', help='公司/著作者名称')
   parser.add_argument('-v', '--version', default='1.0.0', help='版本号')
+  parser.add_argument('-kc', '--keepcomments', action='store_true', help='保留注释')
+  parser.add_argument('-kr', '--keepcopyright', action='store_true', help='保留文件顶部版权信息')
   args = parser.parse_args()
   # print(f'dir   = {args.dir}')
   # print(f'main  = {args.main}')
   # print(f'out   = {args.out}')
   # print(f'langs = {args.languages}')
   print('source code scanning...')
-  docs = process(args.dir, args.languages.split(','), remove_first_comment=True, remove_comment=True)
+  docs = process(args.dir, args.languages.split(','), remove_first_comment=(not args.keepcomments), remove_comment=(not args.keepcopyright))
   # rearrange
   if len(args.main) != 0:
     main = None
